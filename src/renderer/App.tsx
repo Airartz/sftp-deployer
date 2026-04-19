@@ -9,6 +9,7 @@ import UpdateBanner from './components/updater/UpdateBanner'
 import ServerGrid from './components/dashboard/ServerGrid'
 import LogHistory from './components/history/LogHistory'
 import SettingsView from './components/settings/SettingsView'
+import StatsView from './components/stats/StatsView'
 import BackupView from './components/backup/BackupView'
 import TerminalView from './components/terminal/TerminalView'
 import FilesView from './components/files/FilesView'
@@ -41,6 +42,7 @@ export default function App(): React.ReactElement {
           {view === 'dashboard' && <ServerGrid />}
           {view === 'logs' && <LogHistory />}
           {view === 'backup' && <BackupView />}
+          {view === 'stats' && <StatsView />}
           {view === 'settings' && <SettingsView />}
           {/* Always mounted so SFTP connection survives tab switches */}
           <FilesView isActive={view === 'files'} />

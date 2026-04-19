@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import pLimit from 'p-limit'
 import { v4 as uuidv4 } from 'uuid'
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, Notification } from 'electron'
 import type { Server, SyncSession, LocalFile, LogEntry } from '../../../shared/types'
 import { sftpService, SftpConnection } from './sftp.service'
 import { createIgnoreFilter, isIgnored } from './ignore.service'
@@ -290,6 +290,43 @@ async function uploadFiles(
   createdDirs.delete(session.sessionId)
 }
 
+// ─── Post-Deploy SSH command ───────────────────────────────────────────────
+
+async function runPostDeployCommand(
+  win: BrowserWindow,
+  server: Server,
+  sessionId: string
+): Promise<void> {
+  if (!server.postDeployCommand?.trim()) return
+
+  log(win, server.id, sessionId, 'info', `Post-Deploy: ${server.postDeployCommand}`)
+
+  return new Promise((resolve) => {
+    const conn = sftpService.getRawClient(server.id)
+    if (!conn) {
+      log(win, server.id, sessionId, 'warn', 'Post-Deploy: Keine aktive Verbindung')
+      return resolve()
+    }
+
+    conn.exec(server.postDeployCommand!, (err, stream) => {
+      if (err) {
+        log(win, server.id, sessionId, 'warn', `Post-Deploy Fehler: ${err.message}`)
+        return resolve()
+      }
+
+      let output = ''
+      stream.on('data', (chunk: Buffer) => { output += chunk.toString() })
+      stream.stderr.on('data', (chunk: Buffer) => { output += chunk.toString() })
+      stream.on('close', () => {
+        const lines = output.trim().split('\n').filter(Boolean)
+        lines.forEach((line) => log(win, server.id, sessionId, 'info', `  > ${line}`))
+        if (!lines.length) log(win, server.id, sessionId, 'info', 'Post-Deploy: Befehl ausgeführt')
+        resolve()
+      })
+    })
+  })
+}
+
 // ─── Main entry ────────────────────────────────────────────────────────────
 
 export async function startSync(
@@ -463,10 +500,23 @@ export async function startSync(
         session.status = 'cancelled'
         log(win, server.id, sessionId, 'warn', 'Sync abgebrochen')
       } else {
+        // Post-deploy command
+        if (!isDryRun) {
+          await runPostDeployCommand(win, server, sessionId)
+        }
+
         session.status = isDryRun ? 'dry_run_done' : 'done'
         const duration = ((Date.now() - session.startedAt) / 1000).toFixed(1)
         log(win, server.id, sessionId, 'info',
           `Sync abgeschlossen in ${duration}s — ${session.uploadedFiles} hochgeladen, ${session.deletedFiles} gelöscht, ${session.errorFiles} Fehler`)
+
+        // Windows toast notification
+        if (!isDryRun && Notification.isSupported()) {
+          new Notification({
+            title: `✓ ${server.name} synchronisiert`,
+            body: `${session.uploadedFiles} Datei(en) hochgeladen in ${duration}s`
+          }).show()
+        }
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)

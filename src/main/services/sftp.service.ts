@@ -175,6 +175,15 @@ export const sftpService = {
     for (const [id] of pool) {
       await this.disconnect(id)
     }
+  },
+
+  // Returns the underlying ssh2 Client for exec() calls (post-deploy commands)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getRawClient(serverId: string): any | null {
+    const conn = pool.get(serverId)
+    if (!conn || !conn.isConnected()) return null
+    // ssh2-sftp-client stores the underlying ssh2 Client as .client
+    return (conn.client as unknown as { client: unknown }).client ?? null
   }
 }
 

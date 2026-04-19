@@ -126,4 +126,50 @@ export function registerServerHandlers(): void {
       return { ok: false, error: String(err) }
     }
   })
+
+  ipcMain.handle('serverConfig:export', async (): Promise<IpcResponse<string>> => {
+    try {
+      const servers = serverRepo.list()
+      const exportData = servers.map((s) => ({
+        name: s.name,
+        projectName: s.projectName,
+        host: s.host,
+        port: s.port,
+        username: s.username,
+        authType: s.authType,
+        localPath: s.localPath,
+        remotePath: s.remotePath,
+        ignorePatterns: s.ignorePatterns,
+        autoWatch: s.autoWatch,
+        deleteOrphans: s.deleteOrphans,
+        backup: s.backup,
+        postDeployCommand: s.postDeployCommand ?? ''
+      }))
+      return { ok: true, data: JSON.stringify(exportData, null, 2) }
+    } catch (err) {
+      return { ok: false, error: String(err) }
+    }
+  })
+
+  ipcMain.handle('serverConfig:import', async (_event, json: string): Promise<IpcResponse<{ imported: number; skipped: number }>> => {
+    try {
+      const list = JSON.parse(json) as ServerFormData[]
+      if (!Array.isArray(list)) return { ok: false, error: 'Ungültiges Format' }
+
+      const existing = serverRepo.list().map((s) => `${s.host}:${s.port}:${s.username}`)
+      let imported = 0
+      let skipped = 0
+
+      for (const entry of list) {
+        const key = `${entry.host}:${entry.port}:${entry.username}`
+        if (existing.includes(key)) { skipped++; continue }
+        serverRepo.create(entry)
+        imported++
+      }
+
+      return { ok: true, data: { imported, skipped } }
+    } catch (err) {
+      return { ok: false, error: String(err) }
+    }
+  })
 }

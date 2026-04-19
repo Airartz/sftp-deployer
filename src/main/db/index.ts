@@ -54,6 +54,9 @@ export async function initDb(): Promise<void> {
         )`)
       } catch { /* already exists */ }
     }
+    if (v < 5) {
+      try { db.run('ALTER TABLE servers ADD COLUMN post_deploy_command TEXT') } catch { /* already exists */ }
+    }
     if (v < SCHEMA_VERSION) {
       db.run('UPDATE schema_version SET version = ?', [SCHEMA_VERSION])
     }

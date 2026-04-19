@@ -232,6 +232,9 @@ export default function SettingsView(): React.ReactElement {
         {/* Section: Windows Integration */}
         <ContextMenuSection />
 
+        {/* Section: Export / Import */}
+        <ExportImportSection />
+
         {/* Section: Info */}
         <Section title="Info">
           <Field label="Version" hint="SFTP Deployer">
@@ -243,6 +246,83 @@ export default function SettingsView(): React.ReactElement {
         </Section>
       </div>
     </div>
+  )
+}
+
+function ExportImportSection(): React.ReactElement {
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  const [importing, setImporting] = useState(false)
+
+  const flash = (text: string, ok: boolean) => {
+    setMsg({ text, ok })
+    setTimeout(() => setMsg(null), 4000)
+  }
+
+  const handleExport = async () => {
+    const res = await window.electronAPI.serverConfig.export()
+    if (!res.ok || !res.data) { flash(res.error ?? 'Export fehlgeschlagen', false); return }
+    const blob = new Blob([res.data], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `sftp-deployer-servers-${new Date().toISOString().slice(0,10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    flash('Server-Konfiguration exportiert', true)
+  }
+
+  const handleImport = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json'
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (!file) return
+      setImporting(true)
+      const text = await file.text()
+      const res = await window.electronAPI.serverConfig.import(text)
+      setImporting(false)
+      if (res.ok && res.data) {
+        flash(`${res.data.imported} importiert, ${res.data.skipped} übersprungen (bereits vorhanden)`, true)
+        window.location.reload()
+      } else {
+        flash(res.error ?? 'Import fehlgeschlagen', false)
+      }
+    }
+    input.click()
+  }
+
+  return (
+    <Section title="Server-Konfiguration">
+      <Field
+        label="Exportieren"
+        hint="Alle Server als JSON-Datei speichern (ohne Passwörter/Schlüssel)"
+      >
+        <button
+          onClick={handleExport}
+          className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-700 text-slate-400 hover:bg-slate-800 transition-colors"
+        >
+          Exportieren
+        </button>
+      </Field>
+      <Field
+        label="Importieren"
+        hint="Server aus einer zuvor exportierten JSON-Datei laden"
+      >
+        <button
+          onClick={handleImport}
+          disabled={importing}
+          className="px-3 py-1.5 text-xs font-medium rounded-lg border border-indigo-700 text-indigo-400 hover:bg-indigo-900/20 disabled:opacity-40 transition-colors"
+        >
+          {importing ? 'Importiere...' : 'Importieren'}
+        </button>
+      </Field>
+      {msg && (
+        <p className={`text-xs mt-1 mb-2 ${msg.ok ? 'text-emerald-400' : 'text-red-400'}`}>
+          {msg.ok ? '✓' : '✗'} {msg.text}
+        </p>
+      )}
+    </Section>
   )
 }
 

@@ -24,6 +24,7 @@ function rowToServer(cols: string[], vals: (string | number | null)[]): Server {
     autoWatch: r.auto_watch === 1,
     deleteOrphans: r.delete_orphans === 1,
     backup: r.backup === 1,
+    postDeployCommand: (r.post_deploy_command as string | null) ?? undefined,
     createdAt: r.created_at as string,
     updatedAt: r.updated_at as string
   }
@@ -58,8 +59,8 @@ export const serverRepo = {
         id, name, project_name, host, port, username, auth_type,
         encrypted_password, encrypted_private_key, encrypted_passphrase,
         local_path, remote_path, ignore_patterns, auto_watch, delete_orphans, backup,
-        created_at, updated_at
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        post_deploy_command, created_at, updated_at
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     `, [
       id, data.name, data.projectName, data.host, data.port, data.username, data.authType,
       encPass, encKey, encPhrase,
@@ -68,6 +69,7 @@ export const serverRepo = {
       data.autoWatch ? 1 : 0,
       data.deleteOrphans ? 1 : 0,
       data.backup ? 1 : 0,
+      data.postDeployCommand ?? null,
       now, now
     ])
 
@@ -109,6 +111,10 @@ export const serverRepo = {
     if (data.autoWatch !== undefined) { sets.push('auto_watch = ?'); vals.push(data.autoWatch ? 1 : 0) }
     if (data.deleteOrphans !== undefined) { sets.push('delete_orphans = ?'); vals.push(data.deleteOrphans ? 1 : 0) }
     if (data.backup !== undefined) { sets.push('backup = ?'); vals.push(data.backup ? 1 : 0) }
+    if (data.postDeployCommand !== undefined) {
+      sets.push('post_deploy_command = ?')
+      vals.push(data.postDeployCommand || null)
+    }
 
     vals.push(id)
     db.run(`UPDATE servers SET ${sets.join(', ')} WHERE id = ?`, vals)

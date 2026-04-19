@@ -14,6 +14,7 @@ export default function ServerGrid(): React.ReactElement {
   const [editServer, setEditServer] = useState<Server | undefined>()
   const [syncPanelServerId, setSyncPanelServerId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<Server | null>(null)
+  const [syncingAll, setSyncingAll] = useState(false)
 
   useEffect(() => {
     fetchServers()
@@ -25,6 +26,18 @@ export default function ServerGrid(): React.ReactElement {
     if (res.ok && res.data) {
       useSyncStore.getState().setActiveSession(res.data.sessionId)
     }
+  }
+
+  const handleSyncAll = async () => {
+    if (syncingAll || servers.length === 0) return
+    setSyncingAll(true)
+    for (const server of servers) {
+      const res = await window.electronAPI.sync.start(server.id, { isDryRun: false })
+      if (res.ok && res.data) {
+        useSyncStore.getState().setActiveSession(res.data.sessionId)
+      }
+    }
+    setSyncingAll(false)
   }
 
   const handleDelete = (server: Server) => {
@@ -53,12 +66,24 @@ export default function ServerGrid(): React.ReactElement {
       {/* Toolbar */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 flex-shrink-0">
         <h2 className="text-lg font-semibold text-white">Server</h2>
-        <button
-          onClick={() => { setEditServer(undefined); setDialogOpen(true) }}
-          className="px-4 py-1.5 text-sm font-medium rounded-lg bg-indigo-600 hover:bg-indigo-500 transition-colors text-white"
-        >
-          + Server hinzufügen
-        </button>
+        <div className="flex items-center gap-2">
+          {servers.length > 1 && (
+            <button
+              onClick={handleSyncAll}
+              disabled={syncingAll}
+              title="Alle Server gleichzeitig synchronisieren"
+              className="px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-700 hover:bg-slate-800 disabled:opacity-40 transition-colors text-slate-400"
+            >
+              {syncingAll ? 'Starte...' : '⟳ Alle syncen'}
+            </button>
+          )}
+          <button
+            onClick={() => { setEditServer(undefined); setDialogOpen(true) }}
+            className="px-4 py-1.5 text-sm font-medium rounded-lg bg-indigo-600 hover:bg-indigo-500 transition-colors text-white"
+          >
+            + Server hinzufügen
+          </button>
+        </div>
       </div>
 
       {/* Main area — grid + optional panel side by side */}

@@ -17,6 +17,7 @@ export interface Server {
   autoWatch: boolean
   deleteOrphans: boolean
   backup: boolean
+  postDeployCommand?: string
   createdAt: string
   updatedAt: string
 }
@@ -239,6 +240,24 @@ export interface CloudFile {
   mtime: number
 }
 
+// ─── Stats ────────────────────────────────────────────────────────────────────
+
+export interface DailyStats {
+  date: string          // YYYY-MM-DD
+  uploads: number
+  errors: number
+  bytesTransferred: number
+}
+
+export interface DeployStats {
+  totalSyncs: number
+  totalUploads: number
+  totalErrors: number
+  totalBytesTransferred: number
+  last30Days: DailyStats[]
+  topServers: { serverId: string; name: string; syncs: number }[]
+}
+
 // ─── Updater ──────────────────────────────────────────────────────────────────
 
 export interface UpdateInfo {
@@ -300,6 +319,7 @@ export interface ElectronAPI {
   logs: {
     getHistory: (serverId: string, limit?: number) => Promise<IpcResponse<LogEntry[]>>
     clearHistory: (serverId: string) => Promise<IpcResponse>
+    getStats: () => Promise<IpcResponse<DeployStats>>
   }
   fs: {
     pickFolder: () => Promise<IpcResponse<string>>
@@ -370,6 +390,10 @@ export interface ElectronAPI {
     check: () => Promise<IpcResponse<UpdateInfo | null>>
     download: () => Promise<IpcResponse>
     install: () => Promise<IpcResponse>
+  }
+  serverConfig: {
+    export: () => Promise<IpcResponse<string>>
+    import: (json: string) => Promise<IpcResponse<{ imported: number; skipped: number }>>
   }
   on: {
     syncProgress: (cb: (data: SyncProgressEvent) => void) => void

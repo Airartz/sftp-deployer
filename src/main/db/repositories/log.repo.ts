@@ -1,5 +1,5 @@
 import { getDb, persistDb } from '../index'
-import type { LogEntry, LogLevel } from '../../../../shared/types'
+import type { LogEntry, LogLevel, DeployStats, DailyStats } from '../../../../shared/types'
 
 function rowToLog(cols: string[], vals: (string | number | null)[]): LogEntry {
   const r: Record<string, unknown> = {}
@@ -65,5 +65,57 @@ export const logRepo = {
     const cutoff = new Date(Date.now() - days * 86400 * 1000).toISOString()
     db.run('DELETE FROM log_entries WHERE timestamp < ?', [cutoff])
     persistDb()
+  },
+
+  getStats(serverNames: Record<string, string>): DeployStats {
+    const db = getDb()
+
+    const syncsRes = db.exec(`SELECT COUNT(DISTINCT session_id) as c FROM log_entries`)
+    const totalSyncs = (syncsRes[0]?.values[0]?.[0] as number) ?? 0
+
+    const uploadsRes = db.exec(`SELECT COUNT(*) as c FROM log_entries WHERE message LIKE 'Uploaded:%'`)
+    const totalUploads = (uploadsRes[0]?.values[0]?.[0] as number) ?? 0
+
+    const errorsRes = db.exec(`SELECT COUNT(*) as c FROM log_entries WHERE level = 'error'`)
+    const totalErrors = (errorsRes[0]?.values[0]?.[0] as number) ?? 0
+
+    const bytesRes = db.exec(`SELECT COALESCE(SUM(bytes_transferred),0) FROM log_entries`)
+    const totalBytesTransferred = (bytesRes[0]?.values[0]?.[0] as number) ?? 0
+
+    const cutoff = new Date(Date.now() - 30 * 86400 * 1000).toISOString()
+    const dailyRes = db.exec(`
+      SELECT
+        substr(timestamp,1,10) as day,
+        SUM(CASE WHEN message LIKE 'Uploaded:%' THEN 1 ELSE 0 END) as uploads,
+        SUM(CASE WHEN level='error' THEN 1 ELSE 0 END) as errors,
+        COALESCE(SUM(bytes_transferred),0) as bytes
+      FROM log_entries
+      WHERE timestamp >= ?
+      GROUP BY day
+      ORDER BY day ASC
+    `, [cutoff])
+
+    const last30Days: DailyStats[] = (dailyRes[0]?.values ?? []).map((row) => ({
+      date: row[0] as string,
+      uploads: row[1] as number,
+      errors: row[2] as number,
+      bytesTransferred: row[3] as number
+    }))
+
+    const topRes = db.exec(`
+      SELECT server_id, COUNT(DISTINCT session_id) as syncs
+      FROM log_entries
+      GROUP BY server_id
+      ORDER BY syncs DESC
+      LIMIT 5
+    `)
+
+    const topServers = (topRes[0]?.values ?? []).map((row) => ({
+      serverId: row[0] as string,
+      name: serverNames[row[0] as string] ?? row[0] as string,
+      syncs: row[1] as number
+    }))
+
+    return { totalSyncs, totalUploads, totalErrors, totalBytesTransferred, last30Days, topServers }
   }
 }

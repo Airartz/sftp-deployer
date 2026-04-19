@@ -23,7 +23,8 @@ const DEFAULTS: ServerFormData = {
   ignorePatterns: [],
   autoWatch: false,
   deleteOrphans: false,
-  backup: false
+  backup: false,
+  postDeployCommand: ''
 }
 
 export default function ServerDialog({ server, onClose, onSave }: Props): React.ReactElement {
@@ -49,7 +50,8 @@ export default function ServerDialog({ server, onClose, onSave }: Props): React.
         ignorePatterns: server.ignorePatterns,
         autoWatch: server.autoWatch,
         deleteOrphans: server.deleteOrphans,
-        backup: server.backup
+        backup: server.backup,
+        postDeployCommand: server.postDeployCommand ?? ''
       })
       setIgnoreText(server.ignorePatterns.join('\n'))
     }
@@ -305,6 +307,18 @@ export default function ServerDialog({ server, onClose, onSave }: Props): React.
               Backup vor Upload
             </label>
           </div>
+
+          {/* Post-Deploy Command */}
+          <Field label="Post-Deploy Befehl">
+            <input
+              type="text"
+              value={form.postDeployCommand ?? ''}
+              onChange={(e) => set('postDeployCommand', e.target.value)}
+              placeholder="z.B. systemctl restart nginx"
+              className="w-full bg-[var(--color-base)] border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-indigo-500 font-mono"
+            />
+            <p className="text-xs text-slate-600 mt-1">Wird nach jedem erfolgreichen Sync auf dem Server ausgeführt</p>
+          </Field>
 
           {/* Test result */}
           {testResult && (

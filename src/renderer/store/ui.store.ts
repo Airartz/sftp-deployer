@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-type View = 'dashboard' | 'logs' | 'backup' | 'settings' | 'terminal' | 'files'
+type View = 'dashboard' | 'logs' | 'backup' | 'settings' | 'terminal' | 'files' | 'stats'
 
 interface UIStore {
   view: View

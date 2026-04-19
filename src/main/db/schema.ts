@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 4
+export const SCHEMA_VERSION = 5
 
 // sql.js db.exec() supports multiple statements in one call
 export const CREATE_TABLES = `
@@ -23,6 +23,7 @@ export const CREATE_TABLES = `
     auto_watch INTEGER NOT NULL DEFAULT 0,
     delete_orphans INTEGER NOT NULL DEFAULT 0,
     backup INTEGER NOT NULL DEFAULT 0,
+    post_deploy_command TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );

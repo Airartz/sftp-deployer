@@ -45,7 +45,8 @@ const api: ElectronAPI = {
 
   logs: {
     getHistory: (serverId, limit) => ipcRenderer.invoke('logs:getHistory', serverId, limit),
-    clearHistory: (serverId) => ipcRenderer.invoke('logs:clearHistory', serverId)
+    clearHistory: (serverId) => ipcRenderer.invoke('logs:clearHistory', serverId),
+    getStats: () => ipcRenderer.invoke('logs:getStats')
   },
 
   fs: {
@@ -125,6 +126,11 @@ const api: ElectronAPI = {
     check:    () => ipcRenderer.invoke('updater:check'),
     download: () => ipcRenderer.invoke('updater:download'),
     install:  () => ipcRenderer.invoke('updater:install')
+  },
+
+  serverConfig: {
+    export: ()       => ipcRenderer.invoke('serverConfig:export'),
+    import: (json)   => ipcRenderer.invoke('serverConfig:import', json)
   },
 
   on: {

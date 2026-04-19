@@ -4,6 +4,10 @@ import { useUIStore } from '../../store/ui.store'
 const TITLES: Record<string, string> = {
   dashboard: 'Dashboard',
   logs: 'Upload-Logs',
+  backup: 'Backups',
+  stats: 'Statistiken',
+  files: 'Datei-Browser',
+  terminal: 'Terminal',
   settings: 'Einstellungen'
 }
 
