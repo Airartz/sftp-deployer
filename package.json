@@ -1,6 +1,6 @@
 {
   "name": "sftp-deployer",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Intelligent SFTP deployment tool for V-Servers",
   "main": "out/main/index.js",
   "scripts": {
