@@ -322,12 +322,14 @@ function ChmodDialog({ entry, serverId, onClose, onDone }: {
 
 function Pane({
   title, path, entries, loading, error, selected,
-  onSelect, onOpen, onNavigate, onGoUp, onRefresh,
+  onSelect, onSelectRange, onOpen, onNavigate, onGoUp, onRefresh,
   onPickFolder, onOpenInExplorer, onContextMenu, extraActions,
   onDragStartEntry, onDropOnPane
 }: {
   title: React.ReactNode; path: string; entries: PaneEntry[]; loading: boolean; error: string | null
-  selected: Set<string>; onSelect: (n: string, multi: boolean) => void; onOpen: (e: PaneEntry) => void
+  selected: Set<string>; onSelect: (n: string, multi: boolean) => void
+  onSelectRange: (names: string[]) => void
+  onOpen: (e: PaneEntry) => void
   onNavigate: (p: string) => void; onGoUp: () => void; onRefresh: () => void
   onPickFolder?: () => void; onOpenInExplorer?: () => void
   onContextMenu?: (entry: PaneEntry | null, x: number, y: number) => void
@@ -336,6 +338,7 @@ function Pane({
   onDropOnPane?: (entry: PaneEntry | null, e: React.DragEvent) => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const anchorRef = useRef<string | null>(null)
   const dragEnterCount = useRef(0)
   const [paneHighlight, setPaneHighlight] = useState(false)
   const [entryHighlight, setEntryHighlight] = useState<string | null>(null)
@@ -454,7 +457,19 @@ function Pane({
             onDragLeave={entry.isDirectory ? (e) => { e.stopPropagation(); setEntryHighlight(null) } : undefined}
             onDragOver={entry.isDirectory ? (e) => { e.preventDefault(); e.stopPropagation() } : undefined}
             onDrop={entry.isDirectory ? (e) => { e.preventDefault(); e.stopPropagation(); clearDragState(); onDropOnPane?.(entry, e) } : undefined}
-            onClick={e => onSelect(entry.name, e.ctrlKey || e.metaKey)}
+            onClick={e => {
+                if (e.shiftKey && anchorRef.current) {
+                  const anchorIdx = sorted.findIndex(x => x.name === anchorRef.current)
+                  const curIdx = sorted.findIndex(x => x.name === entry.name)
+                  if (anchorIdx >= 0 && curIdx >= 0) {
+                    const [from, to] = anchorIdx < curIdx ? [anchorIdx, curIdx] : [curIdx, anchorIdx]
+                    onSelectRange(sorted.slice(from, to + 1).map(x => x.name))
+                    return
+                  }
+                }
+                anchorRef.current = entry.name
+                onSelect(entry.name, e.ctrlKey || e.metaKey)
+              }}
             onDoubleClick={() => onOpen(entry)}
             onContextMenu={e => { e.preventDefault(); e.stopPropagation(); if (!selected.has(entry.name)) onSelect(entry.name, false); onContextMenu?.(entry, e.clientX, e.clientY) }}
             title={`${entry.name}${entry.isDirectory ? '' : ' — ' + fmtSize(entry.size)}`}
@@ -646,6 +661,8 @@ function FilesSession({ serverId, isActive }: { serverId: string; isActive: bool
 
   const selectRemote = (name: string, multi: boolean) => setRemoteSelected(prev => { const n = multi ? new Set(prev) : new Set<string>(); if (prev.has(name) && !multi) n.delete(name); else n.add(name); return n })
   const selectLocal  = (name: string, multi: boolean) => setLocalSelected(prev => { const n = multi ? new Set(prev) : new Set<string>(); if (prev.has(name) && !multi) n.delete(name); else n.add(name); return n })
+  const selectRemoteRange = (names: string[]) => setRemoteSelected(new Set(names))
+  const selectLocalRange  = (names: string[]) => setLocalSelected(new Set(names))
 
   // Reload left pane when source changes
   useEffect(() => {
@@ -999,7 +1016,7 @@ function FilesSession({ serverId, isActive }: { serverId: string; isActive: bool
                 </div>
               }
               path={localPath} entries={localEntries} loading={localLoading} error={localError}
-              selected={localSelected} onSelect={selectLocal} onOpen={openLocal}
+              selected={localSelected} onSelect={selectLocal} onSelectRange={selectLocalRange} onOpen={openLocal}
               onNavigate={loadLocal} onGoUp={() => loadLocal(parentPath(localPath))} onRefresh={() => loadLocal(localPath)}
               onContextMenu={openLocalCtx}
               onPickFolder={leftSource.type === 'local' ? async () => { const r = await window.electronAPI.sftpBrowser.pickLocalFolder(); if (r.ok && r.data) loadLocal(r.data) } : undefined}
@@ -1008,7 +1025,7 @@ function FilesSession({ serverId, isActive }: { serverId: string; isActive: bool
               onDropOnPane={(targetEntry, e) => handleDrop('local', targetEntry, e)}
             />
             <Pane title="Remote" path={remotePath} entries={remoteEntries} loading={remoteLoading} error={remoteError}
-              selected={remoteSelected} onSelect={selectRemote} onOpen={openRemote}
+              selected={remoteSelected} onSelect={selectRemote} onSelectRange={selectRemoteRange} onOpen={openRemote}
               onNavigate={loadRemote} onGoUp={() => loadRemote(parentPath(remotePath))} onRefresh={() => loadRemote(remotePath)}
               onContextMenu={openRemoteCtx}
               onDragStartEntry={(entry) => handleDragStart(entry, 'remote', remoteSelected, remoteEntries)}

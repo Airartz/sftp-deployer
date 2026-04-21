@@ -108,6 +108,7 @@ export default function TerminalView({
   const [tabs, setTabs] = useState<TabState[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
   const [showDialog, setShowDialog] = useState(false)
+  const [termCtxMenu, setTermCtxMenu] = useState<{ x: number; y: number; tabId: string } | null>(null)
   const [connecting, setConnecting] = useState(false)
   const [form, setForm] = useState<DialogForm>({
     mode: servers.length > 0 ? 'server' : 'manual',
@@ -175,6 +176,20 @@ export default function TerminalView({
       const sid = tab.sessionId
       term.onData(data => window.electronAPI.terminal.write(sid, data))
       term.onResize(({ cols, rows }) => window.electronAPI.terminal.resize(sid, cols, rows))
+
+      term.attachCustomKeyEventHandler((ev) => {
+        if (ev.type !== 'keydown') return true
+        if (ev.ctrlKey && ev.shiftKey && ev.code === 'KeyC') {
+          const sel = term.getSelection()
+          if (sel) navigator.clipboard.writeText(sel)
+          return false
+        }
+        if (ev.ctrlKey && ev.shiftKey && ev.code === 'KeyV') {
+          navigator.clipboard.readText().then(t => { if (t) window.electronAPI.terminal.write(sid, t) })
+          return false
+        }
+        return true
+      })
 
       const inst: XtermInst = { term, fit, sessionId: sid, lastActivity: Date.now() }
       xtermMap.current.set(tab.id, inst)
@@ -456,6 +471,7 @@ export default function TerminalView({
               ref={el => { containerRefs.current.set(tab.id, el) }}
               className="flex-1 rounded-md overflow-hidden"
               style={{ background: '#0d1117', display: tab.status === 'connected' ? 'block' : 'none' }}
+              onContextMenu={e => { e.preventDefault(); setTermCtxMenu({ x: e.clientX, y: e.clientY, tabId: tab.id }) }}
             />
           </div>
         ))
@@ -554,6 +570,35 @@ export default function TerminalView({
   return (
     <>
       {dialog}
+      {termCtxMenu && (
+        <div
+          style={{ position: 'fixed', left: termCtxMenu.x, top: termCtxMenu.y, zIndex: 300 }}
+          className="bg-[var(--color-elevated)] border border-slate-700 rounded-lg shadow-2xl py-1 min-w-36"
+          onMouseLeave={() => setTermCtxMenu(null)}
+        >
+          <button
+            onClick={() => {
+              const sel = xtermMap.current.get(termCtxMenu.tabId)?.term.getSelection()
+              if (sel) navigator.clipboard.writeText(sel)
+              setTermCtxMenu(null)
+            }}
+            className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-slate-300 hover:bg-slate-700/70"
+          >
+            Kopieren <span className="ml-auto text-slate-600">Strg+Shift+C</span>
+          </button>
+          <button
+            onClick={() => {
+              const inst = xtermMap.current.get(termCtxMenu.tabId)
+              if (!inst) return
+              navigator.clipboard.readText().then(t => { if (t) window.electronAPI.terminal.write(inst.sessionId, t) })
+              setTermCtxMenu(null)
+            }}
+            className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-slate-300 hover:bg-slate-700/70"
+          >
+            Einfügen <span className="ml-auto text-slate-600">Strg+Shift+V</span>
+          </button>
+        </div>
+      )}
       <div className="absolute inset-0 flex flex-col" style={{ display: isActive ? 'flex' : 'none' }}>
         {tabBar}
         {termArea}
