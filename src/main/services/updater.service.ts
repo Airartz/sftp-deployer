@@ -161,15 +161,16 @@ class UpdaterService {
       throw new Error('Update-Datei nicht gefunden. Bitte erneut herunterladen.')
     }
 
-    const currentExe = process.execPath
+    // For portable builds, process.execPath points to the temp-extracted copy.
+    // PORTABLE_EXECUTABLE_FILE is set by electron-builder and holds the real path.
+    const currentExe = process.env.PORTABLE_EXECUTABLE_FILE ?? process.execPath
     const pid = process.pid
 
-    // Write a small batch that waits for current process to exit, replaces exe, and relaunches
     const batchPath = path.join(os.tmpdir(), 'sftp-deployer-update.bat')
     const batch = [
       '@echo off',
       `:wait`,
-      `tasklist /FI "PID eq ${pid}" 2>NUL | find /i "${pid}" >NUL`,
+      `tasklist /FI "PID eq ${pid}" 2>NUL | find " ${pid} " >NUL`,
       `if %ERRORLEVEL% == 0 (`,
       `  timeout /t 1 /nobreak >NUL`,
       `  goto wait`,
@@ -182,16 +183,22 @@ class UpdaterService {
 
     fs.writeFileSync(batchPath, batch)
 
-    spawn('cmd.exe', ['/c', batchPath], {
+    // Use VBScript to launch the batch hidden — windowsHide+detached is unreliable on Windows
+    const vbsPath = path.join(os.tmpdir(), 'sftp-deployer-update.vbs')
+    const vbs = [
+      'Set sh = CreateObject("WScript.Shell")',
+      `sh.Run "cmd.exe /c ""${batchPath}""", 0, False`
+    ].join('\r\n')
+
+    fs.writeFileSync(vbsPath, vbs)
+
+    spawn('wscript.exe', ['//B', vbsPath], {
       detached: true,
-      stdio: 'ignore',
-      windowsHide: true
+      stdio: 'ignore'
     }).unref()
 
-    // Quit so the batch can replace the exe
     setTimeout(() => {
-      const wins = BrowserWindow.getAllWindows()
-      wins.forEach((w) => w.destroy())
+      BrowserWindow.getAllWindows().forEach((w) => w.destroy())
       app.exit(0)
     }, 500)
   }
